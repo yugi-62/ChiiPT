@@ -1,0 +1,64 @@
+{
+  "name": "chiipt",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ChiiPT local desktop companion foundation",
+  "main": "dist/main/index.cjs",
+  "engines": {
+    "node": ">=24.14.0 <25"
+  },
+  "scripts": {
+    "dev": "npm run build && node scripts/run.mjs --dev",
+    "start": "npm run build && node scripts/run.mjs",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && node scripts/build.mjs",
+    "package:win": "npm run build && electron-builder --win --x64",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "animation": "npm run build && node scripts/run.mjs --animation",
+    "test:animation": "node scripts/animation-smoke.mjs",
+    "test:integration": "node scripts/integration-smoke.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "electron": "45.3.1",
+    "electron-builder": "^26.18.0",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "1.2.3"
+  },
+  "build": {
+    "appId": "com.chiipt.desktop",
+    "productName": "ChiiPT",
+    "asar": true,
+    "directories": {
+      "output": "dist_electron"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json",
+      "node_modules/@mediapipe/tasks-vision/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "artifactName": "ChiiPT-${version}-${arch}-Setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "ChiiPT-${version}-${arch}-Portable.${ext}"
+    }
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}
