@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "ChiiPT local desktop companion foundation",
+  "description": "Windows desktop posture and healing companion",
   "main": "dist/main/index.cjs",
   "engines": {
     "node": ">=24.14.0 <25"

@@ -1,6 +1,6 @@
-# 초기 공통 개발 환경
+# ChiiPT 개발 환경
 
-기획서·기능 설계서는 보존했습니다. 루트 README에 개발 단계와 실행 안내를 추가했으며, 이 문서는 공통 기반의 상세 동작과 검증 방법을 설명합니다.
+이 문서는 실제 구현된 모듈 구조, 빌드 방법, 보안 경계와 Windows 수동 검증 절차를 설명합니다.
 
 ## 실행
 
@@ -35,17 +35,16 @@ npm run package:win
 
 ## 현재 구현 범위
 
-- Main / sandboxed Preload / Renderer 분리, TypeScript strict, esbuild 번들링.
+- Main / sandboxed Preload / Renderer 분리, TypeScript strict, esbuild 번들링과 electron-builder 패키징.
 - 기본 모니터 작업 영역에 투명·테두리 없는 Always-on-top 창 표시.
-- 원형 임시 캐릭터 내부만 마우스 입력, 나머지 영역은 클릭 통과.
+- 캐릭터 영역 내부만 마우스 입력을 받고 나머지 영역은 클릭 통과.
 - 캐릭터 우클릭 또는 시스템 트레이 우클릭으로 카메라 시작·중단·선택·수면·기상·종료.
-- 2초 누르기 수면, 더블클릭 기상. 도형과 표정은 정적 표시이며 애니메이션은 없음.
+- 캐릭터를 약 2초 누르면 수면하고 더블클릭하면 기상.
 - 단일 웹캠 스트림 소유자, 권한 요청, 장치 목록, 오류 표시, 실제 트랙 중단.
-- 자세·힐링 모듈에 동일 스트림 전달. 두 모듈은 의도적으로 빈 구현.
-- 인식 결과 타입과 CharacterController 연결 지점만 정의.
-
-MediaPipe, 자세 보정·판정, 손동작 인식, 캐릭터 이동·애니메이션, 모의 인식 UI, 설정 저장, 패키징은 구현하지 않았습니다.
-README는 프로젝트 루트의 `README.md` 파일로 정리했습니다.
+- 자세 모드가 공유 스트림에서 Pose Landmarker 추론과 어깨·전방자세 판정을 수행.
+- 힐링 모드가 공유 스트림에서 Hand Landmarker 추론과 쓰다듬기·볼 꼬집기를 판정.
+- 캐릭터 프레임 애니메이션, 좌우 이동, 커서 산책, 수면·기상, 스트레칭을 구현.
+- 설치형 NSIS와 이동형 exe 패키지를 생성.
 
 ## 모듈별 책임
 
@@ -53,19 +52,19 @@ README는 프로젝트 루트의 `README.md` 파일로 정리했습니다.
 | --- | --- |
 | `src/main/index.ts` | 창·트레이·권한·검증된 IPC·로컬 리소스 제공 |
 | `src/preload/index.ts` | 제한된 DesktopBridge 공개. ipcRenderer 자체는 노출하지 않음 |
-| `src/renderer/index.ts` | 입력과 임시 도형 표시, 사용자 명령 연결 |
-| `shared/camera/CameraManager.ts` | getUserMedia 및 모든 트랙의 단일 소유자 |
-| `shared/state/AppRuntime.ts` | 수면/기상, 카메라와 기능 모듈 연결·해제 |
-| `shared/types/index.ts` | 스트림 소비자·인식 결과·상태·IPC 공통 계약 |
-| `features/posture/index.ts` | 자세 팀 진입점 |
-| `features/healing/index.ts` | 힐링 팀 진입점 |
-| `character/CharacterController.ts` | 수명 상태와 인식 결과 보관; 렌더러에 의존하지 않음 |
-| `character/animation/` 및 `assets/` | 후속 렌더링·리소스 자리 |
+| `src/renderer/index.ts` | 입력, 상태 표시, 사용자 명령과 캐릭터 렌더링 연결 |
+| `src/renderer/shared/camera/CameraManager.ts` | getUserMedia 및 모든 트랙의 단일 소유자 |
+| `src/renderer/shared/state/AppRuntime.ts` | 수면/기상, 카메라와 기능 모듈 연결·해제 |
+| `src/renderer/shared/types/index.ts` | 스트림 소비자·인식 결과·상태·IPC 공통 계약 |
+| `src/renderer/features/posture/index.ts` | 자세 추론 진입점 |
+| `src/renderer/features/healing/index.ts` | 손동작 추론과 힐링 상호작용 진입점 |
+| `src/renderer/character/CharacterController.ts` | 수명 상태와 인식 결과 보관; 렌더러에 의존하지 않음 |
+| `src/renderer/character/animation/` 및 `src/assets/` | 캐릭터 애니메이션과 런타임 자산 |
 
 기능 팀은 `start(stream)`에서 전달된 스트림으로 인식을 시작하고 `stop()`에서 자신의 추론·타이머·Worker만 정리합니다.
 기능 내부에서 별도 `getUserMedia()`를 호출하거나 공유 트랙을 중단하지 않습니다.
 결과는 생성 시 전달된 `emit(result)` 콜백으로 내보냅니다. 두 기능은 서로 import하지 않습니다.
-미래 MediaPipe 추론의 Worker·프레임 전달 방식과 모션 우선순위는 해당 구현 단계에서 결정합니다.
+Pose 추론은 전용 Worker에서 실행하며 힐링 추론과 캐릭터 상태는 Renderer에서 조합합니다.
 
 ## 수명주기와 카메라 정책
 
@@ -85,18 +84,19 @@ README는 프로젝트 루트의 `README.md` 파일로 정리했습니다.
 탐색과 새 창은 차단합니다. Main은 IPC 발신 프레임과 페이로드를 검사합니다.
 `app://chiipt` 프로토콜은 빌드된 HTML/JS/CSS 세 파일만 제공합니다. CSP로 외부 스크립트·네트워크 연결을 차단합니다.
 카메라 권한은 앱의 최상위 프레임이 요청하는 video만 허용 대상으로 삼으며, 마이크 등 다른 권한은 거부합니다.
-미래 모델·WASM 연결 시 필요한 리소스 경로와 CSP만 명시적으로 확장해야 합니다.
+모델과 WASM은 빌드된 `app://chiipt/assets/` 경로로 제공됩니다. CSP는 필요한 자체 스크립트·Worker·WASM과 로컬 리소스만 허용합니다.
 
 ## 검증과 Windows 수동 확인
 
-초기 구축 검증 결과:
+검증 결과:
 
 | 항목 | 결과 |
 | --- | --- |
 | npm 의존성 및 Electron 실행 파일 설치 | 완료 |
 | TypeScript 타입 검사 / esbuild 빌드 | 통과 |
-| 카메라·공통 수명주기 자동 테스트 | 7개 통과 (가짜 장치 사용) |
+| 카메라·공통 수명주기·자세·힐링·애니메이션 자동 테스트 | 46개 통과 |
 | 실제 Windows Electron 시작 점검 | Renderer·Preload·카메라 API 노출 확인, Awake / stopped 확인 |
+| Windows 이동형 exe 시작 점검 | Electron 프로세스 정상 시작 확인 |
 | 실행 중 보안 설정 및 Always-on-top 속성 | 확인 |
 | 시각적 투명도·실제 클릭 전달·물리 카메라 | 미검증, 아래 절차로 수동 확인 필요 |
 
@@ -106,14 +106,13 @@ README는 프로젝트 루트의 `README.md` 파일로 정리했습니다.
 
 실제 Windows에서는 다음을 확인합니다.
 
-1. `npm run dev`: 원형 도형과 상태 문구만 표시되고 창 테두리·불투명 배경이 없는지 확인합니다.
-2. 메모장 등을 뒤에 두고 투명 영역·문구·원형의 바깥 모서리를 클릭해 뒤쪽 앱에 입력이 전달되는지 확인합니다.
+1. `npm run dev`: 캐릭터와 상태 문구만 표시되고 창 테두리·불투명 배경이 없는지 확인합니다.
+2. 메모장 등을 뒤에 두고 투명 영역과 캐릭터 바깥을 클릭해 뒤쪽 앱에 입력이 전달되는지 확인합니다.
 3. 캐릭터 우클릭 메뉴가 열리는지, 포인터를 밖으로 옮긴 후 클릭 통과가 복원되는지 확인합니다.
 4. 다른 앱을 활성화해도 캐릭터가 위에 남는지 확인합니다. 관리자 권한 창·독점 전체화면은 별도 검증 대상입니다.
 5. 카메라 시작 시 권한을 취소하여 오류 표시를 확인하고, 다시 시작해 허용한 뒤 `running`과 카메라 표시등을 확인합니다.
 6. 내장·외장 카메라를 각각 선택합니다. 외장 카메라를 빼서 오류·트랙 해제를 확인하고 다시 연결해 재시도합니다.
 7. 수면·카메라 중단·앱 종료 시 표시등이 꺼지는지 확인합니다. 기상 시 이전 카메라 요청 여부가 유지되는지 확인합니다.
 8. 권한 대기 중 트레이에서 중단한 후 허용해도 카메라가 계속 켜지지 않는지 확인합니다.
-9. Windows 배율 100%/150%에서 캐릭터 원형과 클릭 영역이 일치하는지 확인합니다. 다중 모니터 배치는 초기 지원 범위가 아닙니다.
-
-카메라만 켜지고 자세·손동작에 캐릭터가 반응하지 않는 것은 이 단계의 정상 동작입니다.
+9. Windows 배율 100%/150%에서 캐릭터와 클릭 영역이 일치하는지 확인합니다. 다중 모니터 배치는 별도 검증 대상입니다.
+10. 자세 모드에서 어깨 기울기와 화면 접근을 확인하고, 힐링 모드에서 쓰다듬기·볼 꼬집기를 확인합니다.
